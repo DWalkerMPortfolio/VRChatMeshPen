@@ -32,14 +32,10 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     [SerializeField] LineRenderer currentLineRenderer;
     [Tooltip("The line renderer used for smoothing out drawing by remote players")]
     [SerializeField] LineRenderer remoteCurrentLineRenderer;
-    [Tooltip("The line renderer used for regenerating lines")]
-    [SerializeField] LineRenderer regenerationLineRenderer;
     [Tooltip("The line renderer used for marking lines")]
     [SerializeField] LineRenderer markingLineRenderer;
-    [Tooltip("The mesh filter that holds the line mesh")]
-    [SerializeField] MeshFilter meshFilter;
-    [Tooltip("The mesh renderer that displays the line mesh")]
-    [SerializeField] MeshRenderer meshRenderer;
+    [Tooltip("The main line renderer used for displaying all drawn lines")]
+    [SerializeField] LineRenderer mainLineRenderer;
     [Tooltip("The list of colors this line can be")]
     [SerializeField] Color[] colors;
     [Tooltip("The minimum distance a pixel eraser must move before updating line positions")]
@@ -88,6 +84,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     bool bufferingNewCurrentLinePositions; //Whether new current line positions are currently being buffered
     Vector3[] bufferedNewCurrentLinePositions; //A buffer of the most recently received new current line positions
     bool startedRemotePixelErase = false; //Set to true when a remote pixel erase is started, then set back to false as soon as the actual pixelErasing bool is synced to true. Used to start updating shader parameters immediately when a remote erase starts
+    Vector3 lineBreakPosition = new Vector3(0, -10000, 0); // The position set on the main line renderer to indicate a line break and clip the associated quads
     
     DataList pixelEraseSyncData = new DataList(); //The data sent to sync a pixel erase. DataList of DataDictionaries. Dictionary keys: nullClear (bool), lineIndex (int), segmentAIndex (int), positionA_X (double), positionA_Y (double), positionA_Z (double), segmentBIndex (int), positionB_X (double), positionB_Y (double), positionB_Z (double)
 
@@ -120,7 +117,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         pixelEraseShaderPoints = new Vector4[pixelEraseShaderPointsBufferSize];
         for (int i = 0; i < pixelEraseShaderPointsBufferSize; i++)
             pixelEraseShaderPoints[i] = Vector4.positiveInfinity;
-        meshRenderer.material.SetFloat(pixelEraseRadiusParameter, 0);
+        mainLineRenderer.material.SetFloat(pixelEraseRadiusParameter, 0);
     }
 
     private void Update()
@@ -280,10 +277,10 @@ public class Mesh3DPenLine : UdonSharpBehaviour
             //All lines have been cleared
             if (cleared)
             {
-                meshFilter.mesh = new Mesh();
                 linePositions = new DataList();
                 lineColorIndices = new DataList();
                 currentLineRenderer.positionCount = 0;
+                mainLineRenderer.positionCount = 0;
             }
 
             //Deserialize and apply pixel erase data
@@ -469,8 +466,8 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     /// <param name="radius">The radius around the pixel eraser to mark</param>
     public void MarkPixelEraseLine(Vector3 position, float radius)
     {
-        meshRenderer.material.SetVector(pixelEraserPositionParameter, position);
-        meshRenderer.material.SetFloat(pixelEraseMarkRadiusParameter, radius);
+        mainLineRenderer.material.SetVector(pixelEraserPositionParameter, position);
+        mainLineRenderer.material.SetFloat(pixelEraseMarkRadiusParameter, radius);
     }
 
     /// <summary>
@@ -580,7 +577,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     /// </summary>
     public void Clear()
     {
-        meshFilter.mesh = new Mesh();
+        mainLineRenderer.positionCount = 0;
         linePositions = new DataList();
         lineColorIndices = new DataList();
         currentLineRenderer.positionCount = 0;
@@ -688,31 +685,42 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         //Simplify line renderer. This makes sure all clients are fully simplified before adding the line so they all have the same number of points
         //lineRenderer.Simplify(simplifyTolerence);
 
-        //Get mesh from line renderer
+        int newLineStartingIndex = mainLineRenderer.positionCount;
+        mainLineRenderer.positionCount += lineRenderer.positionCount + 1;
+        mainLineRenderer.SetPosition(newLineStartingIndex, lineBreakPosition);
+        for (int i=0; i<lineRenderer.positionCount; i++)
+        {
+            mainLineRenderer.SetPosition(newLineStartingIndex + i + 1, lineRenderer.GetPosition(i));
+        }
+
+        // Mesh method
+        /*
+        // Get mesh from line renderer
         Mesh finishedLineMesh = new Mesh();
         lineRenderer.BakeMesh(finishedLineMesh, useTransform: true);
 
-        //Set vertex colors on new line mesh
+        // Set vertex colors on new line mesh
         int vertexColorIndex = colorIndexOverride != -1 ? colorIndexOverride : colorIndex;
         Color[] vertexColors = new Color[finishedLineMesh.vertexCount];
         for (int i = 0; i < vertexColors.Length; i++)
             vertexColors[i] = colors[vertexColorIndex];
         finishedLineMesh.colors = vertexColors;
 
-        //Create combine instances
+        // Create combine instances
         CombineInstance[] combineInstances = new CombineInstance[2];
         
-        //Existing meshes combine instance
+        // Existing meshes combine instance
         combineInstances[0] = new CombineInstance();
         combineInstances[0].mesh = meshFilter.mesh;
         combineInstances[0].transform = Matrix4x4.identity;
 
-        //New line combine instance
+        // New line combine instance
         combineInstances[1] = new CombineInstance();
         combineInstances[1].mesh = finishedLineMesh;
         combineInstances[1].transform = Matrix4x4.identity;
+        */
 
-        //Save points
+        // Save points
         if (save)
         {
             //Get points from line renderer
@@ -736,11 +744,12 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         else
             Debug.Log("Regenerating line. Line count: " + linePositions.Count);
 
-        //Combine meshes
+        // Combine meshes
+        /*
         Mesh lineMesh = new Mesh();
         lineMesh.CombineMeshes(combineInstances);
         Destroy(meshFilter.mesh);
-        meshFilter.mesh = lineMesh;
+        meshFilter.mesh = lineMesh;*/
     }
 
     /// <summary>
@@ -756,8 +765,9 @@ public class Mesh3DPenLine : UdonSharpBehaviour
             return -1;
 
         //Check if the position is within the mesh bounds
-        if (!meshFilter.mesh.bounds.Intersects(new Bounds(position, Vector3.one * radius)))
-            return -1;
+        // TODO: Replace this with a bounds check that doesn't use the mesh
+        /*if (!meshFilter.mesh.bounds.Intersects(new Bounds(position, Vector3.one * radius)))
+            return -1;*/
 
         //Iterate over all lines drawn by this gameObject to find the closest intersecting line
         bool lineIntersects = false;
@@ -841,12 +851,13 @@ public class Mesh3DPenLine : UdonSharpBehaviour
             return;
 
         //Check if the position is within the mesh bound
-        if (!meshFilter.mesh.bounds.Intersects(new Bounds(position, Vector3.one * radius)))
-            return;
+        // TODO: Replace this with a bounds check that doesn't use the mesh
+        /*if (!meshFilter.mesh.bounds.Intersects(new Bounds(position, Vector3.one * radius)))
+            return;*/
 
         //Update pixel eraser position and radius in shader
-        meshRenderer.material.SetFloat(pixelEraseRadiusParameter, radius);
-        meshRenderer.material.SetVector(pixelEraserPositionParameter, position);
+        mainLineRenderer.material.SetFloat(pixelEraseRadiusParameter, radius);
+        mainLineRenderer.material.SetVector(pixelEraserPositionParameter, position);
 
         //Check if the pixel eraser has moved enough to update line positions
         if (VectorSquareMagnitude(position - lastPixelEraserPosition) > pixelEraserMinMoveDistance * pixelEraserMinMoveDistance)
@@ -855,7 +866,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
             
             //Pass a new point to the shader
             pixelEraseShaderPoints[pixelEraseShaderPointsIndex] = position;
-            meshRenderer.material.SetVectorArray(pixelErasePointsParameter, pixelEraseShaderPoints);
+            mainLineRenderer.material.SetVectorArray(pixelErasePointsParameter, pixelEraseShaderPoints);
             pixelEraseShaderPointsIndex++;
 
             if (updateLineData)
@@ -1091,9 +1102,9 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         //This clear is occuring at the end of a pixel erase
         for (int i = 0; i < pixelEraseShaderPoints.Length; i++)
             pixelEraseShaderPoints[i] = Vector4.positiveInfinity;
-        meshRenderer.material.SetVectorArray(pixelErasePointsParameter, pixelEraseShaderPoints);
+        mainLineRenderer.material.SetVectorArray(pixelErasePointsParameter, pixelEraseShaderPoints);
 
-        meshRenderer.material.SetFloat(pixelEraseRadiusParameter, 0); //Set radius parameter to 0 to avoid clipping points until the next pixel erase starts
+        mainLineRenderer.material.SetFloat(pixelEraseRadiusParameter, 0); //Set radius parameter to 0 to avoid clipping points until the next pixel erase starts
 
         pixelEraseShaderPointsIndex = 0;
     }
@@ -1147,31 +1158,29 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     /// </summary>
     void RegenerateLines()
     {
-        //Clear existing mesh
-        meshFilter.mesh.Clear();
+        // Clear the main line renderer
+        mainLineRenderer.positionCount = 0;
 
-        //Iterate over all lines drawn by this gameObject
+        // Iterate over all lines drawn by this gameObject
+        int pointIndex = 0;
         for (int i = 0; i < linePositions.Count; i++)
         {
-            //Get line points list
+            // Get line points list
             DataToken lineDataToken = linePositions[i];
             DataList lineDataList = lineDataToken.DataList;
-            Vector3[] lineDataArray = new Vector3[lineDataList.Count / 3];
 
-            //Extract Vector3 array from points list
-            int arrayIndex = 0;
+            mainLineRenderer.positionCount += lineDataList.Count / 3 + 1;
+
+            // Add gap before next line
+            mainLineRenderer.SetPosition(pointIndex, lineBreakPosition);
+            pointIndex++;
+
+            // Extract points from points list and apply them to the main line renderer
             for (int j=0; j<lineDataList.Count; j+=3)
             {
-                lineDataArray[arrayIndex] = GetLinePosition(lineDataList, j);
-                arrayIndex++;
+                mainLineRenderer.SetPosition(pointIndex, GetLinePosition(lineDataList, j));
+                pointIndex++;
             }
-
-            //Apply line points to regeneration LineRenderer
-            regenerationLineRenderer.positionCount = lineDataArray.Length;
-            regenerationLineRenderer.SetPositions(lineDataArray);
-
-            //Add to mesh
-            AddLine(regenerationLineRenderer, false, (int)lineColorIndices[i].Double);
         }
     }
     #endregion

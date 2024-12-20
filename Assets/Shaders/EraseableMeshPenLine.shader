@@ -41,6 +41,7 @@ Shader "Custom/Eraseable Mesh Pen Line"
                 float4 vertex : SV_POSITION;
                 fixed4 color : COLOR0;
                 float4 worldPos : TEXCOORD2;
+                float4 clip : TEXCOORD1;
             };
 
             v2f vert (appdata_full v)
@@ -51,6 +52,7 @@ Shader "Custom/Eraseable Mesh Pen Line"
                 o.color = v.color;
                 //o.color = _DebugColor;
                 o.worldPos = mul(unity_ObjectToWorld, v.vertex);
+                o.clip = v.vertex.y < -10 ? 1:0;
                 return o;
             }
 
@@ -71,7 +73,7 @@ Shader "Custom/Eraseable Mesh Pen Line"
                 float squaredDistanceFromErase = dot(distanceVector, distanceVector);
                 inRadius *= step(_EraseRadius * _EraseRadius, squaredDistanceFromErase);
                 
-                clip(inRadius < 0.1f ? -1:1); //Clip the fragment if inside any radius
+                clip(inRadius < 0.1f || i.clip > 0 ? -1:1); //Clip the fragment if inside any radius
 
                 //Set color, highlighting the area inside the marking radius
                 fixed4 col = lerp(_MarkInteriorColor, i.color, step(_MarkRadius * _MarkRadius, squaredDistanceFromErase));

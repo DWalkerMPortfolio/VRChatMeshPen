@@ -8,7 +8,7 @@ Material:
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
   m_Name: EraseablePenLine
-  m_Shader: {fileID: 4800000, guid: 61d4a51f38f1a7742b0340505b2b9e35, type: 3}
+  m_Shader: {fileID: 4800000, guid: d4bbb3ee04a299449b9f07f34ac1d5bc, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
