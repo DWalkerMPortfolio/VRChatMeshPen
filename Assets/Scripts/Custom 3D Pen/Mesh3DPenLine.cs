@@ -4,12 +4,6 @@ using VRC.SDKBase;
 using VRC.Udon;
 using VRC.SDK3.Data;
 using VRC.Udon.Common;
-using System;
-using static VRC.Dynamics.CollisionShapes;
-using BestHTTP.SecureProtocol.Org.BouncyCastle.Utilities;
-using Unity.Burst.Intrinsics;
-using System.Linq;
-using BestHTTP.JSON;
 
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class Mesh3DPenLine : UdonSharpBehaviour
@@ -54,6 +48,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     [SerializeField] string pixelEraseMarkRadiusParameter = "_MarkRadius";
     [Tooltip("The radius around the end of newly received current line positions within which to switch from the remote current line renderer to the actual positions")]
     [SerializeField] float remoteCurrentLineSwapRadius = 0.25f;
+    [SerializeField] Transform[] boundingBoxDisplays;
 
     [Tooltip("The current color of this line")]
     [SerializeField] [UdonSynced] int colorIndex = 0;
@@ -88,8 +83,9 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     
     DataList pixelEraseSyncData = new DataList(); //The data sent to sync a pixel erase. DataList of DataDictionaries. Dictionary keys: nullClear (bool), lineIndex (int), segmentAIndex (int), positionA_X (double), positionA_Y (double), positionA_Z (double), segmentBIndex (int), positionB_X (double), positionB_Y (double), positionB_Z (double)
 
-    DataList linePositions; //A list of lists of positions for all of this object's lines. Points are stored as 3 sequential floats x,y,z
-    DataList lineColorIndices; //A list of color indices for all of this object's lines
+    DataList linePositions = new DataList(); //A list of lists of positions for all of this object's lines. Points are stored as 3 sequential floats x,y,z
+    DataList lineColorIndices = new DataList(); //A list of color indices for all of this object's lines
+    DataList lineBounds = new DataList(); //A list of axis-aligned bounding box extents for each line, used for preliminary eraser collision checks. Each bounding box is stored as a data list with 6 values (x-min, y-min, z-min, x-max, y-max, z-max)
     #endregion
 
     #region Unity Functions
@@ -97,10 +93,6 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     {
         //Get pen tip
         penTip = pen.GetTip();
-
-        //Initialize data containers
-        linePositions = new DataList();
-        lineColorIndices = new DataList();
 
         //Initialize the pen model color
         int startingColorIndex = Mathf.Max(0, lineHolder.GetLineIndex(this));
@@ -130,6 +122,15 @@ public class Mesh3DPenLine : UdonSharpBehaviour
 
     private void Update()
     {
+        //DEBUG bounding boxes
+        for (int i=0; i<lineBounds.Count; i++)
+        {
+            DataList bounds = lineBounds[i].DataList;
+            boundingBoxDisplays[i].gameObject.SetActive(true);
+            boundingBoxDisplays[i].transform.position = new Vector3((float)(bounds[0].Double + bounds[3].Double) / 2, (float)(bounds[1].Double + bounds[4].Double) / 2, (float)(bounds[2].Double + bounds[5].Double) / 2);
+            boundingBoxDisplays[i].transform.localScale = new Vector3((float)(bounds[0].Double - bounds[3].Double), (float)(bounds[1].Double - bounds[4].Double), (float)(bounds[2].Double - bounds[5].Double));
+        }
+
         if (isDrawing)
         {
             if (Networking.IsOwner(gameObject))
@@ -287,6 +288,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
             {
                 linePositions = new DataList();
                 lineColorIndices = new DataList();
+                lineBounds = new DataList();
                 currentLineRenderer.positionCount = 0;
                 foreach (LineRenderer mainLineRenderer in mainLineRenderers)
                     mainLineRenderer.positionCount = 0;
@@ -693,76 +695,53 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     /// </summary>
     /// <param name="lineRenderer">The line renderer holding the line data</param>
     /// <param name="save">Whether to save the points and color in the data lists</param>
-    void AddLine(LineRenderer lineRenderer, bool save = true, int colorIndexOverride = -1)
+    void AddLine(LineRenderer lineRenderer)
     {
-        //Simplify line renderer. This makes sure all clients are fully simplified before adding the line so they all have the same number of points
-        //lineRenderer.Simplify(simplifyTolerence);
-
+        //Get points from line renderer
+        Vector3[] finishedLinePoints = new Vector3[lineRenderer.positionCount];
+        lineRenderer.GetPositions(finishedLinePoints);
+        
+        //Apply to main line renderer
         int newLineStartingIndex = mainLineRenderers[colorIndex].positionCount;
         mainLineRenderers[colorIndex].positionCount += lineRenderer.positionCount + 1;
         mainLineRenderers[colorIndex].SetPosition(newLineStartingIndex, lineBreakPosition);
         for (int i=0; i<lineRenderer.positionCount; i++)
         {
-            mainLineRenderers[colorIndex].SetPosition(newLineStartingIndex + i + 1, lineRenderer.GetPosition(i));
+            mainLineRenderers[colorIndex].SetPosition(newLineStartingIndex + i + 1, finishedLinePoints[i]);
         }
 
-        //Mesh method
-        /*
-        //Get mesh from line renderer
-        Mesh finishedLineMesh = new Mesh();
-        lineRenderer.BakeMesh(finishedLineMesh, useTransform: true);
+        //Initialize new bounds data list
+        DataList lineBoundsDataList = new DataList();
+        lineBoundsDataList.Add(finishedLinePoints[0].x);
+        lineBoundsDataList.Add(finishedLinePoints[0].y);
+        lineBoundsDataList.Add(finishedLinePoints[0].z);
+        lineBoundsDataList.Add(finishedLinePoints[0].x);
+        lineBoundsDataList.Add(finishedLinePoints[0].y);
+        lineBoundsDataList.Add(finishedLinePoints[0].z);
 
-        //Set vertex colors on new line mesh
-        int vertexColorIndex = colorIndexOverride != -1 ? colorIndexOverride : colorIndex;
-        Color[] vertexColors = new Color[finishedLineMesh.vertexCount];
-        for (int i = 0; i < vertexColors.Length; i++)
-            vertexColors[i] = colors[vertexColorIndex];
-        finishedLineMesh.colors = vertexColors;
-
-        //Create combine instances
-        CombineInstance[] combineInstances = new CombineInstance[2];
-        
-        //Existing meshes combine instance
-        combineInstances[0] = new CombineInstance();
-        combineInstances[0].mesh = meshFilter.mesh;
-        combineInstances[0].transform = Matrix4x4.identity;
-
-        //New line combine instance
-        combineInstances[1] = new CombineInstance();
-        combineInstances[1].mesh = finishedLineMesh;
-        combineInstances[1].transform = Matrix4x4.identity;
-        */
-
-        //Save points
-        if (save)
+        //Save to data list
+        DataList lineDataList = new DataList();
+        foreach (Vector3 point in finishedLinePoints)
         {
-            //Get points from line renderer
-            Vector3[] finishedLinePoints = new Vector3[lineRenderer.positionCount];
-            lineRenderer.GetPositions(finishedLinePoints);
+            lineDataList.Add(point.x);
+            lineDataList.Add(point.y);
+            lineDataList.Add(point.z);
 
-            //Save to data list
-            DataList lineDataList = new DataList();
-            foreach (Vector3 point in finishedLinePoints)
-            {
-                lineDataList.Add(point.x);
-                lineDataList.Add(point.y);
-                lineDataList.Add(point.z);
-            }
-            linePositions.Add(lineDataList);
-            Debug.Log("Adding line with " + lineDataList.Count + " points. New line count: " + linePositions.Count);
-
-            //Save colors
-            lineColorIndices.Add(colorIndex);
+            //Update bounds
+            lineBoundsDataList[0] = Mathf.Min((float)lineBoundsDataList[0].Double, point.x);
+            lineBoundsDataList[1] = Mathf.Min((float)lineBoundsDataList[1].Double, point.y);
+            lineBoundsDataList[2] = Mathf.Min((float)lineBoundsDataList[2].Double, point.z);
+            lineBoundsDataList[3] = Mathf.Max((float)lineBoundsDataList[3].Double, point.x);
+            lineBoundsDataList[4] = Mathf.Max((float)lineBoundsDataList[4].Double, point.y);
+            lineBoundsDataList[5] = Mathf.Max((float)lineBoundsDataList[5].Double, point.z);
         }
-        else
-            Debug.Log("Regenerating line. Line count: " + linePositions.Count);
+        linePositions.Add(lineDataList);
+        lineBounds.Add(lineBoundsDataList);
+        Debug.Log("Adding lines with bounds: " + lineBoundsDataList[0].Double + ", " + lineBoundsDataList[1].Double + ", " + lineBoundsDataList[2].Double + ", " + lineBoundsDataList[3].Double + ", " + lineBoundsDataList[4].Double + ", " + lineBoundsDataList[5].Double);
+        //Debug.Log("Adding line with " + lineDataList.Count + " points. New line count: " + linePositions.Count);
 
-        //Combine meshes
-        /*
-        Mesh lineMesh = new Mesh();
-        lineMesh.CombineMeshes(combineInstances);
-        Destroy(meshFilter.mesh);
-        meshFilter.mesh = lineMesh;*/
+        //Save colors
+        lineColorIndices.Add(colorIndex);
     }
 
     /// <summary>
@@ -788,6 +767,8 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         float nearestIntersectionDistanceSquared = Mathf.Infinity;
         for (int i = 0; i < linePositions.Count; i++)
         {
+            //TODO: Check if eraser is within line bounds
+
             //Get line points list
             DataToken lineDataToken = linePositions[i];
             DataList lineDataList = lineDataToken.DataList;
@@ -826,6 +807,14 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     }
 
     /// <summary>
+    /// Check whether a sphere intersects the
+    /// </summary>
+    void CheckSphereBoundingBox()
+    {
+
+    }
+
+    /// <summary>
     /// Erase the line at the given index
     /// </summary>
     /// <param name="index">The index of the line to erase</param>
@@ -835,6 +824,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         linePositions.RemoveAt(index);
         int erasedLineColorIndex = (int)lineColorIndices[index].Double;
         lineColorIndices.RemoveAt(index);
+        lineBounds.RemoveAt(index);
         RegenerateLines(erasedLineColorIndex);
 
         //Sync erased line
@@ -1176,15 +1166,17 @@ public class Mesh3DPenLine : UdonSharpBehaviour
 
     /// <summary>
     /// Regenerate the mesh to match a modified line positions data list
-    /// <param name="color"/>If set, only regenerates lines of that color</param>
+    /// <param name="color"/>If set, only regenerates lines of that color. Does not regenerate bounds</param>
     /// </summary>
     void RegenerateLines(int color = -1)
     {
-        //Clear the main line renderers
+        //Clear the main line renderers and existing bounds
         if (color == -1)
         {
             foreach (LineRenderer mainLineRenderer in mainLineRenderers)
                 mainLineRenderer.positionCount = 0;
+
+            lineBounds.Clear();
         }
         else
             mainLineRenderers[color].positionCount = 0;
@@ -1207,13 +1199,40 @@ public class Mesh3DPenLine : UdonSharpBehaviour
             mainLineRenderers[lineColorIndex].SetPosition(pointIndex[lineColorIndex], lineBreakPosition);
             pointIndex[lineColorIndex]++;
 
+            //Initialize new bounds data list
+            DataList lineBoundsDataList = new DataList();
+            Vector3 lineStartingPosition = GetLinePosition(lineDataList, 0);
+            lineBoundsDataList.Add(lineStartingPosition.x);
+            lineBoundsDataList.Add(lineStartingPosition.y);
+            lineBoundsDataList.Add(lineStartingPosition.z);
+            lineBoundsDataList.Add(lineStartingPosition.x);
+            lineBoundsDataList.Add(lineStartingPosition.y);
+            lineBoundsDataList.Add(lineStartingPosition.z);
+
             //Extract points from points list and apply them to the main line renderer
             for (int j=0; j<lineDataList.Count; j+=3)
             {
-                mainLineRenderers[lineColorIndex].SetPosition(pointIndex[lineColorIndex], GetLinePosition(lineDataList, j));
+                Vector3 linePosition = GetLinePosition(lineDataList, j);
+
+                //Apply to main line renderer
+                mainLineRenderers[lineColorIndex].SetPosition(pointIndex[lineColorIndex], linePosition);
+
+                //Update bounds
+                lineBoundsDataList[0] = Mathf.Min((float)lineBoundsDataList[0].Double, linePosition.x);
+                lineBoundsDataList[1] = Mathf.Min((float)lineBoundsDataList[1].Double, linePosition.y);
+                lineBoundsDataList[2] = Mathf.Min((float)lineBoundsDataList[2].Double, linePosition.z);
+                lineBoundsDataList[3] = Mathf.Max((float)lineBoundsDataList[3].Double, linePosition.x);
+                lineBoundsDataList[4] = Mathf.Max((float)lineBoundsDataList[4].Double, linePosition.y);
+                lineBoundsDataList[5] = Mathf.Max((float)lineBoundsDataList[5].Double, linePosition.z);
+
                 pointIndex[lineColorIndex]++;
             }
+
+            if (color == -1) //Only regenerate bounds if completely regenerating all lines
+                lineBounds.Add(lineBoundsDataList);
         }
+
+        Debug.Log("Regenerated lines. There are currently " + lineBounds.Count + " line bounds saved");
     }
     #endregion
 
