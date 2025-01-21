@@ -37,6 +37,7 @@ All scripts involved in this system are located in `Assets/Scripts/Custom 3D Pen
 - `Mesh3DPenEraser`: Handles both the normal and admin erasers
 - `Mesh3DPenPixelEraser`: Handles the pixel eraser
 - `GenerateLinesForMesh3DPens`: An editor-only utility script used to quickly assign lines to pens in an object pool
+
 Additionally, there is a shader located at `Assets/Shaders/EraseableMeshPenLine.shader`. It handles clipping segments of the line to allow for displaying multiple disconnected lines with a single line renderer. It also handles marking and clipping portions of the line affected by the pixel eraser.
 #### Line Renderers
 The pen makes use of several `LineRenderer`s. Each is located on a child of the pen prefab.

@@ -35,8 +35,7 @@
               "title": "Readme"
             }
           }
-        ],
-        "currentTab": 1
+        ]
       }
     ],
     "direction": "vertical"
@@ -177,13 +176,13 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "311205b365f5582f",
+  "active": "ff82da2167b872c0",
   "lastOpenFiles": [
+    "Readme.md",
     "3D Pen/Pixel Eraser.md",
     "3D Pen/Eraser.md",
     "3D Pen/Admin Eraser.md",
     "3D Pen/3D Pen.md",
-    "Readme.md",
     "Project Setup/Vignette Goggles.md",
     "Project Quirks/VRC Station Quirks.md",
     "Project Quirks/UI.md",
