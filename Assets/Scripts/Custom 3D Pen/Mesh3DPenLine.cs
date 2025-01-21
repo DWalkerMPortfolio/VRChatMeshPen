@@ -48,7 +48,6 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     [SerializeField] string pixelEraseMarkRadiusParameter = "_MarkRadius";
     [Tooltip("The radius around the end of newly received current line positions within which to switch from the remote current line renderer to the actual positions")]
     [SerializeField] float remoteCurrentLineSwapRadius = 0.25f;
-    [SerializeField] Transform[] boundingBoxDisplays;
 
     [Tooltip("The current color of this line")]
     [SerializeField] [UdonSynced] int colorIndex = 0;
@@ -68,6 +67,8 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     [SerializeField] LineRenderer debugLineRenderer;
     [Tooltip("The index of the line to debug")]
     [SerializeField] int debugLineIndex;
+    [Tooltip("The cubes to use for displaying bounding boxes")]
+    [SerializeField] Transform[] boundingBoxDisplays;
 
     Transform penTip; //The transform representing the tip of the pen associated with this line
     Vector3 lastPointPosition; //The position at which we started drawing or the last point was drawn
@@ -122,15 +123,6 @@ public class Mesh3DPenLine : UdonSharpBehaviour
 
     private void Update()
     {
-        //DEBUG bounding boxes
-        for (int i=0; i<lineBounds.Count; i++)
-        {
-            DataList bounds = lineBounds[i].DataList;
-            boundingBoxDisplays[i].gameObject.SetActive(true);
-            boundingBoxDisplays[i].transform.position = new Vector3((float)(bounds[0].Double + bounds[3].Double) / 2, (float)(bounds[1].Double + bounds[4].Double) / 2, (float)(bounds[2].Double + bounds[5].Double) / 2);
-            boundingBoxDisplays[i].transform.localScale = new Vector3((float)(bounds[0].Double - bounds[3].Double), (float)(bounds[1].Double - bounds[4].Double), (float)(bounds[2].Double - bounds[5].Double));
-        }
-
         if (isDrawing)
         {
             if (Networking.IsOwner(gameObject))
@@ -756,10 +748,30 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         if (linePositions == null)
             return -1;
 
-        //Check if the position is within the mesh bounds
-        //TODO: Replace this with a bounds check that doesn't use the mesh
-        /*if (!meshFilter.mesh.bounds.Intersects(new Bounds(position, Vector3.one * radius)))
-            return -1;*/
+        //Check if the position is within each of the main line renderers' bounds
+        bool[] lineRendererBoundsChecks = new bool[mainLineRenderers.Length];
+        bool intersectedAny = false;
+        for (int i=0; i<mainLineRenderers.Length; i++)
+        {
+            Bounds lineRendererBounds = mainLineRenderers[i].bounds;
+            if (SphereAABBIntersectionCheck(position, radius, lineRendererBounds.min, lineRendererBounds.max))
+            {
+                lineRendererBoundsChecks[i] = true;
+                intersectedAny = true;
+            }
+            else
+            {
+                lineRendererBoundsChecks[i] = false;
+            }
+        }
+
+        //Skip if the position doesn't intersect any of the main line renderers
+        if (!intersectedAny)
+        {
+            //Debug.Log("Erase position doesn't intersect any line renderers");
+            return -1;
+        }
+        
 
         //Iterate over all lines drawn by this gameObject to find the closest intersecting line
         bool lineIntersects = false;
@@ -767,7 +779,22 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         float nearestIntersectionDistanceSquared = Mathf.Infinity;
         for (int i = 0; i < linePositions.Count; i++)
         {
-            //TODO: Check if eraser is within line bounds
+            //Skip if this line is part of a line renderer that's bounds don't overlap the position
+            int lineColorIndex = (int)lineColorIndices[i].Double;
+            if (!lineRendererBoundsChecks[lineColorIndex])
+            {
+                //Debug.Log("Skipped line due to line renderer bounds check");
+                continue;
+            }
+
+            //Skip if this line's bounds don't overlap the position
+            Bounds lineBounds = GetLineBounds(i);
+            Debug.Log("Checking against bounds: " + lineBounds);
+            if (!SphereAABBIntersectionCheck(position, radius, lineBounds.min, lineBounds.max))
+            {
+                //Debug.Log("Skipped line due to line bounds check");
+                continue;
+            }
 
             //Get line points list
             DataToken lineDataToken = linePositions[i];
@@ -780,7 +807,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
                 continue;
             }
 
-            //Check collision between eraser sphere and each segment of the line
+            //Check collision between position sphere and each segment of the line
             Vector3 previousPointPosition = GetLinePosition(lineDataList, 0);
             for (int j = 3; j < lineDataList.Count; j += 3)
             {
@@ -807,11 +834,23 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     }
 
     /// <summary>
-    /// Check whether a sphere intersects the
+    /// Get the saved bounds for a specific line index
     /// </summary>
-    void CheckSphereBoundingBox()
+    /// <param name="index">The index of the line to get the bounds of</param>
+    /// <returns>The bounds of the line. Or (-inf,-inf,inf,inf) if no bounds for this line exist</returns>
+    Bounds GetLineBounds(int index)
     {
+        //Check if this line has bounds
+        if (index >= lineBounds.Count)
+            return new Bounds(Vector3.zero, Vector3.positiveInfinity);
 
+        DataList boundsList = lineBounds[index].DataList;
+        Vector3 boundsMin = new Vector3((float)boundsList[0].Double, (float)boundsList[1].Double, (float)boundsList[2].Double);
+        Vector3 boundsMax = new Vector3((float)boundsList[3].Double, (float)boundsList[4].Double, (float)boundsList[5].Double);
+        Bounds bounds = new Bounds();
+        bounds.min = boundsMin;
+        bounds.max = boundsMax;
+        return bounds;
     }
 
     /// <summary>
@@ -853,11 +892,6 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         //Check if there are any lines to intersect
         if (linePositions == null)
             return;
-
-        //Check if the position is within the mesh bound
-        //TODO: Replace this with a bounds check that doesn't use the mesh
-        /*if (!meshFilter.mesh.bounds.Intersects(new Bounds(position, Vector3.one * radius)))
-            return;*/
 
         //Update pixel eraser position and radius in shader
         foreach (LineRenderer mainLineRenderer in mainLineRenderers)
@@ -907,10 +941,51 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     /// <param name="radius">The radius around the pixel eraser to erase</param>
     void PixelEraseUpdateLinePositions(Vector3 position, float radius)
     {
+        //Check if the position is within each of the main line renderers' bounds
+        bool[] lineRendererBoundsChecks = new bool[mainLineRenderers.Length];
+        bool intersectedAny = false;
+        for (int i = 0; i < mainLineRenderers.Length; i++)
+        {
+            Bounds lineRendererBounds = mainLineRenderers[i].bounds;
+            if (SphereAABBIntersectionCheck(position, radius, lineRendererBounds.min, lineRendererBounds.max))
+            {
+                lineRendererBoundsChecks[i] = true;
+                intersectedAny = true;
+            }
+            else
+            {
+                lineRendererBoundsChecks[i] = false;
+            }
+        }
+
+        //Skip if the position doesn't intersect any of the main line renderers
+        if (!intersectedAny)
+        {
+            Debug.Log("Pixel erase position doesn't intersect any line renderers");
+            return;
+        }
+
         //Iterate over all lines in this object
         bool erased = false;
+        int originalLineCount = linePositions.Count;
         for (int i = 0; i < linePositions.Count; i++)
         {
+            //Skip if this line is part of a line renderer that's bounds don't overlap the position
+            int lineColorIndex = (int)lineColorIndices[i].Double;
+            if (!lineRendererBoundsChecks[lineColorIndex])
+            {
+                Debug.Log("Skipped pixel erase line due to line renderer bounds check");
+                continue;
+            }
+
+            //Skip if this line's bounds don't overlap the position
+            Bounds lineBounds = GetLineBounds(i);
+            if (!SphereAABBIntersectionCheck(position, radius, lineBounds.min, lineBounds.max))
+            {
+                Debug.Log("Skipped pixel erase line due to line bounds check");
+                continue;
+            }
+
             //Get line points list
             DataToken lineDataToken = linePositions[i];
             DataList lineDataList = lineDataToken.DataList;
@@ -1165,7 +1240,7 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     }
 
     /// <summary>
-    /// Regenerate the mesh to match a modified line positions data list
+    /// Regenerate the line renderers to match a modified line positions data list
     /// <param name="color"/>If set, only regenerates lines of that color. Does not regenerate bounds</param>
     /// </summary>
     void RegenerateLines(int color = -1)
@@ -1336,6 +1411,29 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     {
         return v.x * v.x + v.y * v.y + v.z * v.z;
     }
+
+    /// <summary>
+    /// Check whether a sphere intersects an axis aligned bounding box
+    /// </summary>
+    /// <param name="spherePos">The world-space position of the sphere</param>
+    /// <param name="sphereRad">The radius of the sphere</param>
+    /// <param name="boxMin">The minimum corner of the box</param>
+    /// <param name="boxMax">The maximum corner of the box</param>
+    bool SphereAABBIntersectionCheck(Vector3 spherePos, float sphereRad, Vector3 boxMin, Vector3 boxMax)
+    {
+        //X-axis intersection
+        if (spherePos.x + sphereRad > boxMin.x && spherePos.x - sphereRad < boxMax.x)
+        {
+            //Y-axis intersection
+            if (spherePos.y + sphereRad > boxMin.y && spherePos.y - sphereRad < boxMax.y)
+            {
+                //Z-axis intersection
+                if (spherePos.z + sphereRad > boxMin.z && spherePos.z - sphereRad < boxMax.z)
+                    return true; //Valid intersection
+            }
+        }
+        return false; //No intersection
+    }
     #endregion
 
     #region Debug Functions
@@ -1348,6 +1446,18 @@ public class Mesh3DPenLine : UdonSharpBehaviour
         for (int i=0; i<lineDataList.Count; i+=3)
         {
             debugLineRenderer.SetPosition(i/3, new Vector3((float)lineDataList[i].Double, (float)lineDataList[i+1].Double, (float)lineDataList[i+2].Double));
+        }
+    }
+
+    [ContextMenu("Debug Display Bounding Boxes")]
+    void DebugBoundingBoxes()
+    {
+        for (int i = 0; i < lineBounds.Count; i++)
+        {
+            DataList bounds = lineBounds[i].DataList;
+            boundingBoxDisplays[i].gameObject.SetActive(true);
+            boundingBoxDisplays[i].transform.position = new Vector3((float)(bounds[0].Double + bounds[3].Double) / 2, (float)(bounds[1].Double + bounds[4].Double) / 2, (float)(bounds[2].Double + bounds[5].Double) / 2);
+            boundingBoxDisplays[i].transform.localScale = new Vector3((float)(bounds[0].Double - bounds[3].Double), (float)(bounds[1].Double - bounds[4].Double), (float)(bounds[2].Double - bounds[5].Double));
         }
     }
     #endregion
