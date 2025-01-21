@@ -9,6 +9,7 @@ using VRC.Udon.Common;
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class LateJoinMesh3DPenLineSync : UdonSharpBehaviour
 {
+    #region Variables
     [Tooltip("The Mesh3DPenLine to sync")]
     [SerializeField] Mesh3DPenLine line;
     [Tooltip("Whether the owner of this object should request syncs too")]
@@ -18,7 +19,9 @@ public class LateJoinMesh3DPenLineSync : UdonSharpBehaviour
     [UdonSynced] string colorIndicesJson;
 
     bool requestedSync = false; //Whether this client requested for the line to be synced
+    #endregion
 
+    #region Unity Methods
     private void Start()
     {
         if (ownerSyncs || !Networking.IsOwner(gameObject))
@@ -28,7 +31,9 @@ public class LateJoinMesh3DPenLineSync : UdonSharpBehaviour
             SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.Owner, nameof(SyncLine));
         }
     }
+    #endregion
 
+    #region Public Methods
     /// <summary>
     /// Called by late joiners on the owner to request that the line be synced
     /// </summary>
@@ -36,8 +41,12 @@ public class LateJoinMesh3DPenLineSync : UdonSharpBehaviour
     {
         RequestSerialization();
     }
+    #endregion
 
-    //Called right before network data is sent
+    #region VRChat Methods
+    /// <summary>
+    /// Called right before network data is sent
+    /// </summary>
     public override void OnPreSerialization()
     {
         base.OnPreSerialization();
@@ -61,7 +70,9 @@ public class LateJoinMesh3DPenLineSync : UdonSharpBehaviour
         }
     }
 
-    //Called when new network data is received
+    /// <summary>
+    /// Called when new network data is received
+    /// </summary>
     public override void OnDeserialization()
     {
         base.OnDeserialization();
@@ -93,4 +104,5 @@ public class LateJoinMesh3DPenLineSync : UdonSharpBehaviour
             requestedSync = false;
         }
     }
+    #endregion
 }

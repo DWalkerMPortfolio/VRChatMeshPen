@@ -188,6 +188,9 @@ public class Mesh3DPenLine : UdonSharpBehaviour
     #endregion
 
     #region VRChat Functions
+    /// <summary>
+    /// Called immediately before network data is sent
+    /// </summary>
     public override void OnPreSerialization()
     {
         base.OnPreSerialization();

@@ -8,10 +8,15 @@ using VRC.Udon;
 [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
 public class Mesh3DPenLineHolder : UdonSharpBehaviour
 {
+    #region Variables
     [Tooltip("All Mesh 3D Pen lines in the scene")]
     public Mesh3DPenLine[] mesh3DPenLines;
+    #endregion
 
-    //Called by the clear all lines button
+    #region Public Methods
+    /// <summary>
+    /// Called by the clear all lines button
+    /// </summary>
     public void ClearAllLines()
     {
         foreach (Mesh3DPenLine line in mesh3DPenLines)
@@ -35,4 +40,5 @@ public class Mesh3DPenLineHolder : UdonSharpBehaviour
 
         return -1;
     }
+    #endregion
 }

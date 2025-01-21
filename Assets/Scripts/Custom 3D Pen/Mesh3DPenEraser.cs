@@ -9,6 +9,7 @@ using VRC.Udon;
 [UdonBehaviourSyncMode(BehaviourSyncMode.Continuous)]
 public class Mesh3DPenEraser : UdonSharpBehaviour
 {
+    #region Variables
     [Tooltip("The VRCPickup for this eraser")]
     [SerializeField] VRCPickup pickup;
     [Tooltip("The Mesh 3D Pen Line Holder in the scene")]
@@ -22,7 +23,9 @@ public class Mesh3DPenEraser : UdonSharpBehaviour
 
     float lastCheckEraseTime = -Mathf.Infinity; //The last time this eraser checked which line to erase
     bool clearedMarks = false; //Whether this pen's marks have been cleared after it was dropped
+    #endregion
 
+    #region Unity Methods
     private void Update()
     {
         if (pickup.IsHeld && pickup.currentPlayer == Networking.LocalPlayer)
@@ -40,7 +43,12 @@ public class Mesh3DPenEraser : UdonSharpBehaviour
             ClearMarks();
         }
     }
+    #endregion
 
+    #region VRChat Methods
+    /// <summary>
+    /// Called when the interact button is pressed while the eraser is held
+    /// </summary>
     public override void OnPickupUseDown()
     {
         base.OnPickupUseDown();
@@ -50,7 +58,9 @@ public class Mesh3DPenEraser : UdonSharpBehaviour
         //Send event to all instances of self so that client that owns the line can handle the erase
         SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(Erase));
     }
+    #endregion
 
+    #region Public Methods
     /// <summary>
     /// Called on all instances of this eraser so each one can communicate directly with the owner of each line
     /// </summary>
@@ -73,7 +83,12 @@ public class Mesh3DPenEraser : UdonSharpBehaviour
             }
         }
     }
+    #endregion
 
+    #region Private Methods
+    /// <summary>
+    /// Mark the line that is currently targeted for erasal
+    /// </summary>
     void Mark()
     {
         foreach (Mesh3DPenLine penLine in penLineHolder.mesh3DPenLines)
@@ -85,6 +100,9 @@ public class Mesh3DPenEraser : UdonSharpBehaviour
         }
     }
 
+    /// <summary>
+    /// Clear all marks currently on lines
+    /// </summary>
     void ClearMarks()
     {
         foreach (Mesh3DPenLine penLine in penLineHolder.mesh3DPenLines)
@@ -95,4 +113,5 @@ public class Mesh3DPenEraser : UdonSharpBehaviour
             penLine.ClearMark();
         }
     }
+    #endregion
 }

@@ -8,11 +8,14 @@ using VRC.Udon;
 [UdonBehaviourSyncMode(BehaviourSyncMode.None)]
 public class Mesh3DPenPalette : UdonSharpBehaviour
 {
+    #region Variables
     [Tooltip("The root gameObject of the palette")]
     [SerializeField] GameObject paletteRoot;
     [Tooltip("The FollowWrist component for the palette")]
     [SerializeField] FollowWrist followWrist;
+    #endregion
 
+    #region Public Methods
     public void PenPickedUp(VRC_Pickup.PickupHand hand)
     {
         if (Networking.LocalPlayer.IsUserInVR())
@@ -27,4 +30,5 @@ public class Mesh3DPenPalette : UdonSharpBehaviour
     {
         paletteRoot.SetActive(false);
     }
+    #endregion
 }

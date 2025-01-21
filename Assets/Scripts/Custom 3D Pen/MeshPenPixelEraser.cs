@@ -8,6 +8,7 @@ using VRC.Udon;
 [UdonBehaviourSyncMode(BehaviourSyncMode.Manual)]
 public class MeshPenPixelEraser : UdonSharpBehaviour
 {
+    #region Variables
     [Tooltip("The mesh 3D pen line holder in the scene")]
     [SerializeField] Mesh3DPenLineHolder lineHolder;
     [Tooltip("The radius around this eraser to erase")]
@@ -16,7 +17,9 @@ public class MeshPenPixelEraser : UdonSharpBehaviour
     [UdonSynced] bool erasing = false; //Whether the pixel eraser is currently erasing
 
     bool held; //Whether the pixel eraser is currently held by the local player
+    #endregion
 
+    #region Unity Methods
     private void Update()
     {
         if (erasing)
@@ -35,8 +38,12 @@ public class MeshPenPixelEraser : UdonSharpBehaviour
             }
         }
     }
+    #endregion
 
-    //Called on all clients when starting erasing
+    #region Public Methods
+    /// <summary>
+    /// Called on all clients when starting erasing
+    /// </summary>
     public void StartErasing()
     {
         if (erasing)
@@ -50,7 +57,9 @@ public class MeshPenPixelEraser : UdonSharpBehaviour
         }
     }
 
-    //Called on all clients when stopping erasing
+    /// <summary>
+    /// Called on all clients when stopping erasing
+    /// </summary>
     public void StopErasing()
     {
         //Skip if erasing is already false
@@ -65,28 +74,41 @@ public class MeshPenPixelEraser : UdonSharpBehaviour
                 line.FinishPixelErase(transform.position, eraseRadius); //Owner of line finishes pixel erase, then clears shader parameters on other instances
         }
     }
-
+    
+    /// <summary>
+    /// Called by the GenericPickupInput when the interact button is pressed while the eraser is held
+    /// </summary>
     public void Used()
     {
         SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(StartErasing));
         StartErasing();
     }
     
+    /// <summary>
+    /// Called by the GenericPickupInput when the interact button is released while the eraser is held
+    /// </summary>
     public void StoppedUsing()
     {
         SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(StopErasing));
         StopErasing();
     }
 
+    /// <summary>
+    /// Called by the GenericPickupInput when the eraser is picked up
+    /// </summary>
     public void PickedUp()
     {
         held = true;
     }
 
+    /// <summary>
+    /// Called by the GenericPickupInput when the eraser is dropped
+    /// </summary>
     public void Dropped()
     {
         held = false;
         SendCustomNetworkEvent(VRC.Udon.Common.Interfaces.NetworkEventTarget.All, nameof(StopErasing));
         StopErasing();
     }
+    #endregion
 }

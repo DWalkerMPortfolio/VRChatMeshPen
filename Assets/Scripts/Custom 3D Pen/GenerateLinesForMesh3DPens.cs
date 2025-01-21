@@ -5,13 +5,19 @@ using VRC.SDK3.Components;
 
 public class GenerateLinesForMesh3DPens : MonoBehaviour
 {
+    #region Variables
     [Tooltip("The pool that holds the pens")]
     [SerializeField] VRCObjectPool penPool;
     [Tooltip("The Mesh 3D Pen Line Holder to hold the lines")]
     [SerializeField] Mesh3DPenLineHolder lineHolder;
     [Tooltip("The Mesh 3D Pen Line prefab")]
     [SerializeField] GameObject linePrefab;
+    #endregion
 
+    #region Private Functions
+    /// <summary>
+    /// Generates lines for an object pool of 3D pens
+    /// </summary>
     [ContextMenu("Generate")]
     void Generate()
     {
@@ -35,4 +41,5 @@ public class GenerateLinesForMesh3DPens : MonoBehaviour
             lineHolder.mesh3DPenLines[i] = line;
         }
     }
+    #endregion
 }
