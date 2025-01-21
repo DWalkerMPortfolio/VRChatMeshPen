@@ -40,7 +40,7 @@ All scripts involved in this system are located in `Assets/Scripts/Custom 3D Pen
 
 Additionally, there is a shader located at `Assets/Shaders/EraseableMeshPenLine.shader`. It handles clipping segments of the line to allow for displaying multiple disconnected lines with a single line renderer. It also handles marking and clipping portions of the line affected by the pixel eraser.
 #### Line Renderers
-The pen makes use of several `LineRenderer`s. Each is located on a child of the pen prefab.
+The pen makes use of several `LineRenderer`s. Each is located on a child of the pen line prefab.
 - Main Lines: Displays all lines that have been drawn by this pen. One per color the pen can draw.
 - Current Line: Displays the line that is currently being drawn
 - Remote Current Line: The position of the pen syncs to remote clients more frequently than the current line data does. This `LineRenderer` follows the position of the pen to display an approximate prediction of what a remote player is drawing, smoothing out the perspective of remote players
