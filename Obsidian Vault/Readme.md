@@ -1,0 +1,5 @@
+This documentation was originally created to onboard new members of the Meetspace VR development team. It explained the intent, functionality, and technical details of the various systems developed for the project. It is designed for use with Obsidian but can be viewed and edited in any markdown editor.
+
+The documentation for the 3D pen system has been included in this repository as a showcase and to aid anyone wishing to use or modify this system for themselves. It has been updated to account for updates I have made to the system. All documentation in this repository was written by me. The formatting template used was created by Keith Lerner, another member of the Meetspace VR development team.
+
+Documentation of specific functions and properties may be found in comments within the various script files of the 3D pen system.

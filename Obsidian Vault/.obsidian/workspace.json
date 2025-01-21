@@ -20,8 +20,23 @@
               "icon": "lucide-file",
               "title": "3D Pen"
             }
+          },
+          {
+            "id": "311205b365f5582f",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "Readme.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "Readme"
+            }
           }
-        ]
+        ],
+        "currentTab": 1
       }
     ],
     "direction": "vertical"
@@ -162,8 +177,13 @@
       "command-palette:Open command palette": false
     }
   },
-  "active": "ff82da2167b872c0",
+  "active": "311205b365f5582f",
   "lastOpenFiles": [
+    "3D Pen/Pixel Eraser.md",
+    "3D Pen/Eraser.md",
+    "3D Pen/Admin Eraser.md",
+    "3D Pen/3D Pen.md",
+    "Readme.md",
     "Project Setup/Vignette Goggles.md",
     "Project Quirks/VRC Station Quirks.md",
     "Project Quirks/UI.md",
@@ -175,10 +195,6 @@
     "Project Setup/Invisibility.md",
     "ReadMe.md",
     "5tspi.png",
-    "3D Pen/Pixel Eraser.md",
-    "3D Pen/Eraser.md",
-    "3D Pen/Admin Eraser.md",
-    "3D Pen/3D Pen.md",
     "Project Setup/Attention Check System.md",
     "Project Setup/Admin System.md",
     "Project Setup/Cool System.md",

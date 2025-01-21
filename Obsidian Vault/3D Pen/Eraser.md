@@ -18,9 +18,9 @@ N/A
 #### Keyboard/Mouse Specific
 N/A
 ### Developer Perspective
-While held, the eraser queries every line in the scene to determine which (if any) to target. This collision checking is expensive and is therefore not performed every frame. The collision checking code also avoids the use of square root operations in an attempt to improve performance. The marking is performed using the marking `LineRenderer` of the line ([[3D Pen#Line Renderers|see here]]).
+While held, the eraser queries every line in the scene to determine which (if any) to target. Rough bounding box checks are used to initially narrow down potentially targetable lines. Despite this, this collision checking is expensive and is therefore not performed every frame. The collision checking code also avoids the use of square root operations in an attempt to improve performance. The marking is performed using the marking `LineRenderer` of the line ([[3D Pen#Line Renderers|see here]]).
 
-The regular eraser and admin eraser both use the same script. The admin eraser has the `Clear All` property of the `Mesh 3D Pen Eraser` script selected while the normal eraser does not. The admin eraser also has an `Admin Only Pickup` script attached to it.
+The regular eraser and admin eraser both use the same script. The admin eraser has the `Clear All` property of the `Mesh 3D Pen Eraser` script selected while the normal eraser does not.
 ## How to Tweak Behavior
 ### To add an eraser to the scene:
 1. Add the `Assets/Prefabs/Work/Mesh Pen Eraser` prefab to the scene.
